@@ -2,45 +2,12 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
 
-from database import session, User, Comment, init_db
+from database import init_db, get_all_users, add_user, find_user_by_id, add_comment
 
-# Initialize database and seed with initial data if empty
 init_db()
 
-if not session.query(User).first():
-    user1 = User(
-        id="USR001",
-        name="John Doe",
-        email="john.doe@email.com",
-        phone="+1-555-0123",
-        status="active",
-        created_at=datetime(2024, 1, 15, 9, 30, 0),
-        last_activity=datetime(2024, 1, 20, 14, 22, 0)
-    )
-    user1.comments = [
-        Comment(text="Initial contact made", timestamp=datetime(2024, 1, 15, 9, 35, 0), author="Admin"),
-        Comment(text="Follow-up scheduled", timestamp=datetime(2024, 1, 18, 11, 0, 0), author="Sales Team")
-    ]
-
-    user2 = User(
-        id="USR002",
-        name="Jane Smith",
-        email="jane.smith@email.com",
-        phone="+1-555-0124",
-        status="pending",
-        created_at=datetime(2024, 1, 18, 16, 45, 0),
-        last_activity=datetime(2024, 1, 19, 10, 15, 0)
-    )
-    user2.comments = [
-        Comment(text="Awaiting documentation", timestamp=datetime(2024, 1, 18, 16, 50, 0), author="Support")
-    ]
-
-    session.add_all([user1, user2])
-    session.commit()
-
-
-def format_time(dt):
-    return dt.strftime("%Y-%m-%d %H:%M:%S")
+def format_time(ts):
+    return ts
 
 
 class CRMApp:
@@ -88,10 +55,10 @@ class CRMApp:
         self.root.after(1000, self.update_time)
 
     def refresh_stats(self):
-        users = session.query(User).all()
+        users = get_all_users()
         total = len(users)
-        active = len([u for u in users if u.status == 'active'])
-        pending = len([u for u in users if u.status == 'pending'])
+        active = len([u for u in users if u['status'] == 'active'])
+        pending = len([u for u in users if u['status'] == 'pending'])
         self.total_label.config(text=f"Total Users: {total}")
         self.active_label.config(text=f"Active Users: {active}")
         self.pending_label.config(text=f"Pending Users: {pending}")
@@ -99,10 +66,10 @@ class CRMApp:
     def refresh_table(self):
         for i in self.tree.get_children():
             self.tree.delete(i)
-        for user in session.query(User).all():
-            self.tree.insert('', 'end', iid=user.id, values=(
-                user.id, user.name, user.email, user.status,
-                format_time(user.created_at), format_time(user.last_activity)
+        for user in get_all_users():
+            self.tree.insert('', 'end', iid=user['id'], values=(
+                user['id'], user['name'], user['email'], user['status'],
+                format_time(user['created_at']), format_time(user['last_activity'])
             ))
 
     def open_new_user_window(self):
@@ -125,20 +92,7 @@ class CRMApp:
             if not name or not email:
                 messagebox.showerror("Error", "Name and Email are required")
                 return
-            new_id = f"USR{session.query(User).count() + 1:03d}"
-            now = datetime.now()
-            user = User(
-                id=new_id,
-                name=name,
-                email=email,
-                phone=phone,
-                status='pending',
-                created_at=now,
-                last_activity=now
-            )
-            user.comments = [Comment(text="User registered in system", timestamp=now, author="System")]
-            session.add(user)
-            session.commit()
+            add_user(name, email, phone)
             self.refresh_table()
             self.refresh_stats()
             win.destroy()
@@ -147,7 +101,7 @@ class CRMApp:
 
     def search_user(self):
         uid = self.search_var.get().strip()
-        user = session.query(User).filter_by(id=uid).first()
+        user = find_user_by_id(uid)
         if user:
             self.open_user_details(user)
         else:
@@ -157,45 +111,41 @@ class CRMApp:
         item = self.tree.selection()
         if item:
             uid = item[0]
-            user = session.query(User).get(uid)
+            user = find_user_by_id(uid)
             if user:
                 self.open_user_details(user)
 
     def open_user_details(self, user):
         win = tk.Toplevel(self.root)
-        win.title(f"User Details - {user.id}")
+        win.title(f"User Details - {user['id']}")
         info_frame = ttk.Frame(win)
         info_frame.pack(fill='x', padx=10, pady=10)
-        ttk.Label(info_frame, text=f"Name: {user.name}").grid(row=0, column=0, sticky='w')
-        ttk.Label(info_frame, text=f"Email: {user.email}").grid(row=0, column=1, sticky='w', padx=10)
-        ttk.Label(info_frame, text=f"Phone: {user.phone}").grid(row=1, column=0, sticky='w')
-        ttk.Label(info_frame, text=f"Status: {user.status}").grid(row=1, column=1, sticky='w', padx=10)
-        ttk.Label(info_frame, text=f"Created: {format_time(user.created_at)}").grid(row=2, column=0, sticky='w')
-        ttk.Label(info_frame, text=f"Last Activity: {format_time(user.last_activity)}").grid(row=2, column=1, sticky='w', padx=10)
+        ttk.Label(info_frame, text=f"Name: {user['name']}").grid(row=0, column=0, sticky='w')
+        ttk.Label(info_frame, text=f"Email: {user['email']}").grid(row=0, column=1, sticky='w', padx=10)
+        ttk.Label(info_frame, text=f"Phone: {user['phone']}").grid(row=1, column=0, sticky='w')
+        ttk.Label(info_frame, text=f"Status: {user['status']}").grid(row=1, column=1, sticky='w', padx=10)
+        ttk.Label(info_frame, text=f"Created: {format_time(user['created_at'])}").grid(row=2, column=0, sticky='w')
+        ttk.Label(info_frame, text=f"Last Activity: {format_time(user['last_activity'])}").grid(row=2, column=1, sticky='w', padx=10)
 
         ttk.Label(win, text="Comments & Activity Log").pack(anchor='w', padx=10)
         comments_box = tk.Listbox(win, width=80)
         comments_box.pack(fill='both', expand=True, padx=10, pady=5)
-        for c in user.comments:
-            comments_box.insert('end', f"[{format_time(c.timestamp)}] {c.author}: {c.text}")
+        for c in user['comments']:
+            comments_box.insert('end', f"[{format_time(c['timestamp'])}] {c['author']}: {c['text']}")
 
         comment_var = tk.StringVar()
         ttk.Entry(win, textvariable=comment_var, width=60).pack(side='left', padx=10, pady=10)
 
-        def add_comment():
+        def submit_comment():
             text = comment_var.get().strip()
             if not text:
                 return
-            now = datetime.now()
-            comment = Comment(user_id=user.id, text=text, timestamp=now, author="Current User")
-            user.last_activity = now
-            session.add(comment)
-            session.commit()
-            comments_box.insert('end', f"[{format_time(now)}] Current User: {text}")
+            ts = add_comment(user['id'], text)
+            comments_box.insert('end', f"[{ts}] Current User: {text}")
             comment_var.set('')
             self.refresh_table()
 
-        ttk.Button(win, text="Add Comment", command=add_comment).pack(side='left', pady=10)
+        ttk.Button(win, text="Add Comment", command=submit_comment).pack(side='left', pady=10)
 
 
 if __name__ == '__main__':
