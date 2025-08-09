@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>{{ action }} Cliente</h2>
+<form method="post">
+  <div class="mb-3">
+    <label class="form-label">Número de Préstamo</label>
+    <input type="text" class="form-control" name="loan_number" value="{{ client.loan_number or '' }}" {% if client.loan_number %}readonly{% endif %}>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Nombre</label>
+    <input type="text" class="form-control" name="name" value="{{ client.name or '' }}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Cédula</label>
+    <input type="text" class="form-control" name="id_number" value="{{ client.id_number or '' }}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Dirección</label>
+    <input type="text" class="form-control" name="address" value="{{ client.address or '' }}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Localidad</label>
+    <input type="text" class="form-control" name="locality" value="{{ client.locality or '' }}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Nota</label>
+    <textarea class="form-control" name="note">{{ client.note or '' }}</textarea>
+  </div>
+  <button type="submit" class="btn btn-primary">Guardar</button>
+</form>
+{% endblock %}

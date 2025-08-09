@@ -18,110 +18,136 @@ def connect():
 def init_db():
     with connect() as conn:
         c = conn.cursor()
-        c.execute(
-            '''CREATE TABLE IF NOT EXISTS users (
-                   id TEXT PRIMARY KEY,
-                   name TEXT NOT NULL,
-                   email TEXT NOT NULL,
-                   phone TEXT,
-                   status TEXT,
-                   created_at TEXT,
-                   last_activity TEXT
-               )'''
-        )
-        c.execute(
-            '''CREATE TABLE IF NOT EXISTS comments (
-                   id INTEGER PRIMARY KEY AUTOINCREMENT,
-                   user_id TEXT,
-                   text TEXT,
-                   timestamp TEXT,
-                   author TEXT,
-                   FOREIGN KEY(user_id) REFERENCES users(id)
-               )'''
-        )
-        c.execute('SELECT COUNT(*) FROM users')
-        if c.fetchone()[0] == 0:
-            c.execute('INSERT INTO users VALUES (?,?,?,?,?,?,?)',
-                      ('USR001', 'John Doe', 'john.doe@email.com', '+1-555-0123',
-                       'active', '2024-01-15 09:30:00', '2024-01-20 14:22:00'))
-            c.execute('INSERT INTO comments (user_id,text,timestamp,author) VALUES (?,?,?,?)',
-                      ('USR001', 'Initial contact made', '2024-01-15 09:35:00', 'Admin'))
-            c.execute('INSERT INTO comments (user_id,text,timestamp,author) VALUES (?,?,?,?)',
-                      ('USR001', 'Follow-up scheduled', '2024-01-18 11:00:00', 'Sales Team'))
-            c.execute('INSERT INTO users VALUES (?,?,?,?,?,?,?)',
-                      ('USR002', 'Jane Smith', 'jane.smith@email.com', '+1-555-0124',
-                       'pending', '2024-01-18 16:45:00', '2024-01-19 10:15:00'))
-            c.execute('INSERT INTO comments (user_id,text,timestamp,author) VALUES (?,?,?,?)',
-                      ('USR002', 'Awaiting documentation', '2024-01-18 16:50:00', 'Support'))
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS clients (
+                loan_number TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                id_number TEXT NOT NULL,
+                address TEXT,
+                locality TEXT,
+                note TEXT,
+                created_at TEXT,
+                updated_at TEXT
+            )
+        ''')
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS comments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                loan_number TEXT,
+                text TEXT,
+                timestamp TEXT,
+                FOREIGN KEY(loan_number) REFERENCES clients(loan_number)
+            )
+        ''')
         conn.commit()
 
-def get_all_users():
-    with connect() as conn:
-        c = conn.cursor()
-        c.execute('SELECT id, name, email, phone, status, created_at, last_activity FROM users')
-        users = []
-        for row in c.fetchall():
-            uid = row[0]
-            c.execute('SELECT id, text, timestamp, author FROM comments WHERE user_id=? ORDER BY timestamp', (uid,))
-            comments = [
-                {"id": str(cid), "text": text, "timestamp": ts, "author": author}
-                for cid, text, ts, author in c.fetchall()
-            ]
-            users.append({
-                'id': uid,
-                'name': row[1],
-                'email': row[2],
-                'phone': row[3],
-                'status': row[4],
-                'created_at': row[5],
-                'last_activity': row[6],
-                'comments': comments
-            })
-        return users
-
-def find_user_by_id(uid):
-    with connect() as conn:
-        c = conn.cursor()
-        c.execute('SELECT id, name, email, phone, status, created_at, last_activity FROM users WHERE id=?', (uid,))
-        row = c.fetchone()
-        if not row:
-            return None
-        c.execute('SELECT id, text, timestamp, author FROM comments WHERE user_id=? ORDER BY timestamp', (uid,))
-        comments = [
-            {"id": str(cid), "text": text, "timestamp": ts, "author": author}
-            for cid, text, ts, author in c.fetchall()
-        ]
-        return {
-            'id': row[0],
-            'name': row[1],
-            'email': row[2],
-            'phone': row[3],
-            'status': row[4],
-            'created_at': row[5],
-            'last_activity': row[6],
-            'comments': comments
-        }
-
-def add_user(name, email, phone):
-    with connect() as conn:
-        c = conn.cursor()
-        c.execute('SELECT COUNT(*) FROM users')
-        new_id = f'USR{c.fetchone()[0] + 1:03d}'
-        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        c.execute('INSERT INTO users VALUES (?,?,?,?,?,?,?)',
-                  (new_id, name, email, phone, 'pending', now, now))
-        c.execute('INSERT INTO comments (user_id,text,timestamp,author) VALUES (?,?,?,?)',
-                  (new_id, 'User registered in system', now, 'System'))
-        conn.commit()
-        return new_id
-
-def add_comment(uid, text, author='Current User'):
+def add_client(loan_number, name, id_number, address, locality, note):
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     with connect() as conn:
         c = conn.cursor()
-        c.execute('INSERT INTO comments (user_id,text,timestamp,author) VALUES (?,?,?,?)',
-                  (uid, text, now, author))
-        c.execute('UPDATE users SET last_activity=? WHERE id=?', (now, uid))
+        c.execute('INSERT INTO clients VALUES (?,?,?,?,?,?,?,?)',
+                  (loan_number, name, id_number, address, locality, note, now, now))
+        conn.commit()
+
+def update_client(loan_number, name, id_number, address, locality, note):
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with connect() as conn:
+        c = conn.cursor()
+        c.execute('''
+            UPDATE clients
+            SET name=?, id_number=?, address=?, locality=?, note=?, updated_at=?
+            WHERE loan_number=?
+        ''', (name, id_number, address, locality, note, now, loan_number))
+        conn.commit()
+
+def delete_client(loan_number):
+    with connect() as conn:
+        c = conn.cursor()
+        c.execute('DELETE FROM comments WHERE loan_number=?', (loan_number,))
+        c.execute('DELETE FROM clients WHERE loan_number=?', (loan_number,))
+        conn.commit()
+
+def get_all_clients():
+    with connect() as conn:
+        c = conn.cursor()
+        c.execute('''
+            SELECT loan_number, name, id_number, address, locality, note, created_at, updated_at
+            FROM clients ORDER BY created_at DESC
+        ''')
+        return [
+            {
+                'loan_number': row[0],
+                'name': row[1],
+                'id_number': row[2],
+                'address': row[3],
+                'locality': row[4],
+                'note': row[5],
+                'created_at': row[6],
+                'updated_at': row[7]
+            }
+            for row in c.fetchall()
+        ]
+
+def search_clients(term):
+    like = f"%{term}%"
+    with connect() as conn:
+        c = conn.cursor()
+        c.execute('''
+            SELECT loan_number, name, id_number, address, locality, note, created_at, updated_at
+            FROM clients
+            WHERE loan_number LIKE ? OR id_number LIKE ? OR name LIKE ?
+            ORDER BY created_at DESC
+        ''', (like, like, like))
+        return [
+            {
+                'loan_number': row[0],
+                'name': row[1],
+                'id_number': row[2],
+                'address': row[3],
+                'locality': row[4],
+                'note': row[5],
+                'created_at': row[6],
+                'updated_at': row[7]
+            }
+            for row in c.fetchall()
+        ]
+
+def get_client(loan_number):
+    with connect() as conn:
+        c = conn.cursor()
+        c.execute('''
+            SELECT loan_number, name, id_number, address, locality, note, created_at, updated_at
+            FROM clients WHERE loan_number=?
+        ''', (loan_number,))
+        row = c.fetchone()
+        if not row:
+            return None
+        return {
+            'loan_number': row[0],
+            'name': row[1],
+            'id_number': row[2],
+            'address': row[3],
+            'locality': row[4],
+            'note': row[5],
+            'created_at': row[6],
+            'updated_at': row[7]
+        }
+
+def get_comments(loan_number):
+    with connect() as conn:
+        c = conn.cursor()
+        c.execute('SELECT id, text, timestamp FROM comments WHERE loan_number=? ORDER BY timestamp', (loan_number,))
+        return [
+            {'id': row[0], 'text': row[1], 'timestamp': row[2]}
+            for row in c.fetchall()
+        ]
+
+def add_comment(loan_number, text):
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with connect() as conn:
+        c = conn.cursor()
+        c.execute('INSERT INTO comments (loan_number, text, timestamp) VALUES (?,?,?)',
+                  (loan_number, text, now))
         conn.commit()
         return now
 
