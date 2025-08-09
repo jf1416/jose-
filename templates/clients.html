@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Clientes</h2>
+<form class="row g-3 mb-3" method="get">
+  <div class="col-auto">
+    <input type="text" class="form-control" name="q" placeholder="Buscar..." value="{{ q }}">
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-primary">Consultar</button>
+  </div>
+</form>
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Préstamo</th>
+      <th>Nombre</th>
+      <th>Cédula</th>
+      <th>Dirección</th>
+      <th>Localidad</th>
+      <th>Nota</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in clients %}
+    <tr>
+      <td>{{ c.loan_number }}</td>
+      <td>{{ c.name }}</td>
+      <td>{{ c.id_number }}</td>
+      <td>{{ c.address }}</td>
+      <td>{{ c.locality }}</td>
+      <td>{{ c.note }}</td>
+      <td>
+        <a class="btn btn-sm btn-info" href="{{ url_for('client_detail', loan_number=c.loan_number) }}">Ver</a>
+        <a class="btn btn-sm btn-secondary" href="{{ url_for('edit_client', loan_number=c.loan_number) }}">Editar</a>
+        <form action="{{ url_for('remove_client', loan_number=c.loan_number) }}" method="post" style="display:inline-block" onsubmit="return confirm('¿Eliminar?');">
+          <button class="btn btn-sm btn-danger">Eliminar</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
